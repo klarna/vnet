@@ -1,0 +1,15 @@
+{application, vnet,
+ [{description, "Distributed Erlang network model"},
+  {vsn, "0.1.0"},
+  {registered, [vnet]},
+  {applications,
+   [ kernel
+   , stdlib
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, ["Dániel Szoboszlay"]},
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.
