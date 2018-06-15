@@ -1,3 +1,5 @@
+%%% @doc Proxy process.
+%%% @copyright 2018 Klarna Bank AB
 -module(vnet_proxy).
 
 %% API

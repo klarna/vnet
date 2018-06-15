@@ -1,3 +1,5 @@
+%%% @doc The main application module.
+%%% @copyright 2018 Klarna Bank AB
 -module(vnet).
 
 %% API
@@ -349,10 +351,6 @@ get_type(Pid) ->
 %% A vnode name that is not part of the virtual network. This value
 %% can also be used as a nonexistent node name.
 -define(nonode, zulu).
-
-%% This is needed to please the compiler that treats warnings on
-%% missing specs as errors.
--spec test() -> term().
 
 %% The identifier of a process used by the {@link rcv/1} function.
 -type rid() :: {pid(), reference(), vnode()}.
