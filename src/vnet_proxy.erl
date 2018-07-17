@@ -50,8 +50,8 @@ init(VNodeC, VNodeS, Pid, Gen) ->
   link(Pid),
   PidName =
     case process_info(Pid, registered_name) of
-      [] -> erlang:pid_to_list(Pid);
-      {registered_name, Name} -> Name
+      {registered_name, Name} -> Name;
+      _ -> erlang:pid_to_list(Pid)
     end,
   ProxyName =
     lists:flatten(io_lib:format( "~p/~s->~s/~p"
