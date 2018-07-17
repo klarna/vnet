@@ -24,10 +24,19 @@
 -spec start(vnet:vnode(), vnet:vnode(), pid(), term()) -> {ok, pid()} |
                                                           {error, any()}.
 start(VNodeC, VNodeS, Pid, Gen) ->
-  proc_lib:start( ?MODULE
-                , init
-                , [VNodeC, VNodeS, Pid, Gen]
-                ).
+  P = self(),
+  Ref = make_ref(),
+  Fun =
+    fun() ->
+        init(VNodeC, VNodeS, Pid, Gen),
+        P ! {ack, Ref},
+        loop(Pid)
+    end,
+  Proxy = spawn(Fun),
+  receive
+    {ack, Ref} -> ok
+  end,
+  {ok, Proxy}.
 
 -spec on_disconnect(pid()) -> ok.
 on_disconnect(Proxy) ->
@@ -56,9 +65,7 @@ init(VNodeC, VNodeS, Pid, Gen) ->
   ProxyName =
     lists:flatten(io_lib:format( "~p/~s->~s/~p"
                                , [PidName, VNodeC, VNodeS, Gen])),
-  register(list_to_atom(ProxyName), self()),
-  proc_lib:init_ack({ok, self()}),
-  loop(Pid).
+  register(list_to_atom(ProxyName), self()).
 
 -spec loop(pid()) -> no_return().
 loop(Pid) ->
