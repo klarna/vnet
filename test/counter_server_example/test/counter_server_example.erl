@@ -79,8 +79,9 @@ local_request(Request) ->
 
 check_results(error, _Res2) -> ok;
 check_results(_Res1, error) -> ok;
-check_results({ok, _Gen1, Res1}, {ok, _Gen2, Res2}) ->
-  ?assert(Res2 > Res1);
+check_results({ok, Gen1, Res1}, {ok, Gen2, Res2}) ->
+  ?assert(Res2 > Res1),
+  ?assert(Gen2 >= Gen1);
 check_results(Res1, Res2) ->
   ?assertEqual(ok, {unexpected, Res1, Res2}).
 
