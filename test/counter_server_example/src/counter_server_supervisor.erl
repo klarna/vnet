@@ -47,8 +47,13 @@ start_link(Arg) ->
 
 init([Arg]) ->
 
-  ?TABLE = ets:new(?TABLE, [named_table, public]),
-  true = ets:insert(?TABLE, [{generation, 0}, {counter, 0}]),
+  TableName =
+    case Arg of
+      no_vnet -> ?TABLE;
+      vnet -> vnet:tab(vnet:vnode(), ?TABLE)
+    end,
+  TableName = ets:new(TableName, [named_table, public]),
+  true = ets:insert(TableName, [{generation, 0}, {counter, 0}]),
 
   SupFlags =
     #{ strategy => one_for_one
@@ -64,7 +69,7 @@ init([Arg]) ->
 
   AChild =
     # { id => ?SERVER
-      , start => {?SERVER, start_link, [ServerName]}
+      , start => {?SERVER, start_link, [ServerName, TableName]}
       , restart => permanent
       , shutdown => 5000
       , modules => [?SERVER]

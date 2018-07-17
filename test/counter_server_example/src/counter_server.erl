@@ -10,7 +10,7 @@
 -module(counter_server).
 
 %% API
--export([ start_link/1
+-export([ start_link/2
         , request/2
         ]).
 
@@ -27,16 +27,17 @@
 
 -include("counter_server.hrl").
 
--record(state, {
-         generation :: pos_integer()
-         }).
+-record(state,
+        { generation :: pos_integer()
+        , table :: ets:tid()
+        }).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
-start_link(Name) ->
-  gen_server:start_link(Name, ?MODULE, [], []).
+start_link(Name, TableName) ->
+  gen_server:start_link(Name, ?MODULE, TableName, []).
 
 request(Name, Request) ->
   gen_server:call(Name, Request).
@@ -46,16 +47,18 @@ request(Name, Request) ->
 %%%===================================================================
 
 %% @private
-init([]) ->
-  Generation = ets:update_counter(?TABLE, generation, 1),
-  {ok, #state{generation = Generation}}.
+init(TableName) ->
+  Generation = ets:update_counter(TableName, generation, 1),
+  {ok, #state{generation = Generation, table = TableName}}.
 
 %%--------------------------------------------------------------------
 
 %% @private
 handle_call(increment, _From, State) ->
-  #state{generation = Generation} = State,
-  Counter = ets:update_counter(?TABLE, counter, 1),
+  #state{ generation = Generation
+        , table = TableName
+        } = State,
+  Counter = ets:update_counter(TableName, counter, 1),
   {reply, {ok, Generation, Counter}, State};
 handle_call(_Request, _From, _State) ->
   error(invalid).
