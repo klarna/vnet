@@ -28,10 +28,10 @@
 
 -export(
    [ setup_server/0
-   , once_valid_client/0
-   , twice_valid_client/0
-   , invalid_client/0
-   , twice_valid_same_gen_client/0
+   , once_valid_client/1
+   , twice_valid_client/1
+   , invalid_client/1
+   , twice_valid_same_gen_client/1
    ]).
 
 %%%-------------------------------------------------------------------
@@ -149,7 +149,7 @@ once_valid_test() ->
   %% Synchronous server setup
   vnet:rpc(server, counter_server_example, setup_server, []),
   %% Async client request
-  ClientRPC = [counter_server_example, once_valid_client, []],
+  ClientRPC = [counter_server_example, once_valid_client, [proxy]],
   spawned_vnet_rpc(client, ClientRPC).
 
 %%%-------------------------------------------------------------------
@@ -169,23 +169,24 @@ spawned_vnet_rpc(VNode, RPC) ->
 
 %%%-------------------------------------------------------------------
 
-once_valid_client() ->
-  valid_rpc_request().
+once_valid_client(Mode) ->
+  valid_rpc_request(Mode).
 
-valid_rpc_request() ->
-  server_request(increment).
+valid_rpc_request(Mode) ->
+  server_request(increment, Mode).
 
-server_request(Request) ->
+server_request(Request, Mode) ->
   try
-    %% %% The commented out variant leads to schedulings where
-    %% %% vnet_proxy.erl, l52 crashes cause the process is not
-    %% %% alive and the call returns `undefined'
     Response =
-      counter_server:request({via, vnet, {server, ?SERVER}}, Request),
+      case Mode of
+        rpc ->
+          {ok, _, _} =
+            vnet:rpc(server, counter_server, request, [{via, vnet, ?SERVER}, Request]);
+        proxy ->
+          counter_server:request({via, vnet, {server, ?SERVER}}, Request)
+      end,
     check_response(Response),
     Response
-    %% {ok, _, _} =
-    %%   vnet:rpc(server, counter_server, request, [{via, vnet, ?SERVER}, Request])
   catch
     exit:B ->
       check_exit(B),
@@ -198,6 +199,7 @@ check_response(Unexp) ->
 
 check_exit({timeout, _}) -> ok;
 check_exit({noproc, _}) -> ok;
+check_exit({rpc_crash, _}) -> ok;
 check_exit({{invalid, _}, _}) -> ok;
 check_exit(UnexpReason) ->
   ?assertEqual(unexpected_exit, UnexpReason).
@@ -207,22 +209,29 @@ check_exit(UnexpReason) ->
 %% @doc
 %% Simulating a scenario with one node as client, making two requests
 %% and checking results.
-twice_valid_test() ->
+
+twice_valid_proxy_test() ->
+  twice_valid_test(proxy).
+
+twice_valid_rpc_test() ->
+  twice_valid_test(rpc).
+
+twice_valid_test(Mode) ->
   Nodes = [server, client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
   vnet:rpc(server, counter_server_example, setup_server, []),
-  ClinetRPC = [counter_server_example, twice_valid_client, []],
+  ClinetRPC = [counter_server_example, twice_valid_client, [Mode]],
   spawned_vnet_rpc(client, ClinetRPC).
 
 %%--------------------------------------------------------------------
 
-twice_valid_client() ->
-  Res1 = valid_rpc_request(),
+twice_valid_client(Mode) ->
+  Res1 = valid_rpc_request(Mode),
   case Res1 =:= error of
     true -> ok;
     false ->
-      Res2 = valid_rpc_request(),
+      Res2 = valid_rpc_request(Mode),
       check_results(Res1, Res2)
   end.
 
@@ -231,47 +240,59 @@ twice_valid_client() ->
 %% @doc
 %% Simulating a scenario with two client nodes, one of which will
 %% break the server.
-invalid_test() ->
+invalid_proxy_test() ->
+  invalid_test(proxy).
+
+invalid_rpc_test() ->
+  invalid_test(rpc).
+
+invalid_test(Mode) ->
   Nodes = [server, client, bad_client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
   vnet:rpc(server, counter_server_example, setup_server, []),
-  GoodClientRPC = [counter_server_example, twice_valid_client, []],
+  GoodClientRPC = [counter_server_example, twice_valid_client, [Mode]],
   spawned_vnet_rpc(client, GoodClientRPC),
-  BadClientRPC = [counter_server_example, invalid_client, []],
+  BadClientRPC = [counter_server_example, invalid_client, [Mode]],
   spawned_vnet_rpc(bad_client, BadClientRPC).
 
 %%--------------------------------------------------------------------
 
-invalid_client() ->
-  invalid_rpc_request().
+invalid_client(Mode) ->
+  invalid_rpc_request(Mode).
 
-invalid_rpc_request() ->
-  ?assertEqual(error, server_request(invalid)).
+invalid_rpc_request(Mode) ->
+  ?assertEqual(error, server_request(invalid, Mode)).
 
 %%--------------------------------------------------------------------
 
 %% @doc
 %% Simulating a scenario with one node as client, making a requests and
 %% checking results.
-invalid_same_gen_test() ->
+invalid_same_gen_proxy_test() ->
+  invalid_same_gen_test(proxy).
+
+invalid_same_gen_rpc_test() ->
+  invalid_same_gen_test(rpc).
+
+invalid_same_gen_test(Mode) ->
   Nodes = [server, client, bad_client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
   vnet:rpc(server, counter_server_example, setup_server, []),
-  GoodRPC = [counter_server_example, twice_valid_same_gen_client, []],
+  GoodRPC = [counter_server_example, twice_valid_same_gen_client, [Mode]],
   spawned_vnet_rpc(client, GoodRPC),
-  BadRPC = [counter_server_example, invalid_client, []],
+  BadRPC = [counter_server_example, invalid_client, [Mode]],
   spawned_vnet_rpc(bad_client, BadRPC).
 
 %%--------------------------------------------------------------------
 
-twice_valid_same_gen_client() ->
-  Res1 = valid_rpc_request(),
+twice_valid_same_gen_client(Mode) ->
+  Res1 = valid_rpc_request(Mode),
   case Res1 =:= error of
     true -> ok;
     false ->
-      Res2 = valid_rpc_request(),
+      Res2 = valid_rpc_request(Mode),
       check_results(Res1, Res2),
       check_same_gen(Res1, Res2)
   end.
@@ -281,14 +302,20 @@ twice_valid_same_gen_client() ->
 %% @doc
 %% Simulating a scenario with one node as client, making a request,
 %% while the connection is broken.
-disconnect_test() ->
+disconnect_proxy_test() ->
+  disconnect_test(proxy).
+
+disconnect_rpc_test() ->
+  disconnect_test(rpc).
+
+disconnect_test(Mode) ->
   Nodes = [server, client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
   %% Synchronous server setup
   vnet:rpc(server, counter_server_example, setup_server, []),
   %% Async client request
-  ClientRPC = [counter_server_example, twice_valid_same_gen_client, []],
+  ClientRPC = [counter_server_example, twice_valid_same_gen_client, [Mode]],
   spawned_vnet_rpc(client, ClientRPC),
   vnet:disconnect(server, client).
 
@@ -297,13 +324,19 @@ disconnect_test() ->
 %% @doc
 %% Simulating a scenario with one node as client, making a request,
 %% while the connection is broken.
-node_down_test() ->
+node_down_proxy_test() ->
+  node_down_test(proxy).
+
+node_down_rpc_test() ->
+  node_down_test(rpc).
+
+node_down_test(Mode) ->
   Nodes = [server, client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
   %% Synchronous server setup
   vnet:rpc(server, counter_server_example, setup_server, []),
   %% Async client request
-  ClientRPC = [counter_server_example, twice_valid_same_gen_client, []],
+  ClientRPC = [counter_server_example, twice_valid_same_gen_client, [Mode]],
   spawned_vnet_rpc(client, ClientRPC),
   vnet:stop(server).
