@@ -25,8 +25,6 @@
 
 %%%-------------------------------------------------------------------
 
--include("counter_server.hrl").
-
 -record(state,
         { generation :: pos_integer()
         , table :: ets:tid()

@@ -20,6 +20,7 @@
 -include("counter_server.hrl").
 
 -define(SUPERVISOR, ?MODULE).
+-define(TABLE, counter_table).
 
 %%%===================================================================
 %%% API functions

@@ -9,8 +9,7 @@
         ]).
 
 %% Internal callbacks
--export([ init/4
-        , loop/2
+-export([ loop/2
         ]).
 
 %% A message to signal the proxy shall go down with noconnection
@@ -32,11 +31,11 @@ start(VNodeC, VNodeS, Pid, Gen) ->
         P ! {ack, Ref},
         loop(Pid)
     end,
-  Proxy = spawn(Fun),
+  {Proxy, Monitor} = spawn_monitor(Fun),
   receive
-    {ack, Ref} -> ok
-  end,
-  {ok, Proxy}.
+    {ack, Ref} -> {ok, Proxy};
+    {'DOWN', Monitor, process, Proxy, Reason} -> {error, Reason}
+  end.
 
 -spec on_disconnect(pid()) -> ok.
 on_disconnect(Proxy) ->
