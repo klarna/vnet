@@ -291,3 +291,19 @@ disconnect_test() ->
   ClientRPC = [counter_server_example, twice_valid_same_gen_client, []],
   spawned_vnet_rpc(client, ClientRPC),
   vnet:disconnect(server, client).
+
+%%%===================================================================
+
+%% @doc
+%% Simulating a scenario with one node as client, making a request,
+%% while the connection is broken.
+node_down_test() ->
+  Nodes = [server, client],
+  {ok, S} = vnet:start_link(Nodes),
+  unlink(S),
+  %% Synchronous server setup
+  vnet:rpc(server, counter_server_example, setup_server, []),
+  %% Async client request
+  ClientRPC = [counter_server_example, twice_valid_same_gen_client, []],
+  spawned_vnet_rpc(client, ClientRPC),
+  vnet:stop(server).
