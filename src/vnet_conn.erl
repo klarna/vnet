@@ -173,7 +173,7 @@ disconnected({call, From}, {vnode_starting, VNode}, Data) ->
   {keep_state, Data#{VNode => started}, {reply, From, ok}};
 disconnected({call, From}, {vnode_stopping, VNode}, Data) ->
   {keep_state, Data#{VNode => stopped}, {reply, From, ok}};
-disconnected(_EventContent, _EventContent, _Data) ->
+disconnected(_EventType, _EventContent, _Data) ->
   keep_state_and_data.
 
 -spec terminating_proxies(gen_statem:event_type(), any(), data()) ->
