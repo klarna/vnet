@@ -275,3 +275,19 @@ twice_valid_same_gen_client() ->
       check_results(Res1, Res2),
       check_same_gen(Res1, Res2)
   end.
+
+%%%===================================================================
+
+%% @doc
+%% Simulating a scenario with one node as client, making a request,
+%% while the connection is broken.
+disconnect_test() ->
+  Nodes = [server, client],
+  {ok, S} = vnet:start_link(Nodes),
+  unlink(S),
+  %% Synchronous server setup
+  vnet:rpc(server, counter_server_example, setup_server, []),
+  %% Async client request
+  ClientRPC = [counter_server_example, twice_valid_same_gen_client, []],
+  spawned_vnet_rpc(client, ClientRPC),
+  vnet:disconnect(server, client).
