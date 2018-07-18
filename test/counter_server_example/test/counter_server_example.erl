@@ -180,12 +180,27 @@ server_request(Request) ->
     %% %% The commented out variant leads to schedulings where
     %% %% vnet_proxy.erl, l52 crashes cause the process is not
     %% %% alive and the call returns `undefined'
-     counter_server:request({via, vnet, {server, ?SERVER}}, Request)
-     %% {ok, _, _} =
-     %%   vnet:rpc(server, counter_server, request, [{via, vnet, ?SERVER}, Request])
+    Response =
+      counter_server:request({via, vnet, {server, ?SERVER}}, Request),
+    check_response(Response),
+    Response
+    %% {ok, _, _} =
+    %%   vnet:rpc(server, counter_server, request, [{via, vnet, ?SERVER}, Request])
   catch
-    _:_ -> error
+    exit:B ->
+      check_exit(B),
+      error
   end.
+
+check_response({ok, _, _}) -> ok;
+check_response(Unexp) ->
+  ?assertEqual(unexpected_response, Unexp).
+
+check_exit({timeout, _}) -> ok;
+check_exit({noproc, _}) -> ok;
+check_exit({{invalid, _}, _}) -> ok;
+check_exit(UnexpReason) ->
+  ?assertEqual(unexpected_exit, UnexpReason).
 
 %%--------------------------------------------------------------------
 
