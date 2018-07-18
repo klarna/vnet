@@ -3,20 +3,35 @@
 %%% Example for using vnet to simulate a cluster of nodes, one of
 %%% which serves as a counter server.
 %%%
-%%% All _test functions demonstrate scenarios of using the server. See
-%%% their documentation for more info.
+%%% All _scenario functions demonstrate scenarios of using the
+%%% server. See their documentation for more info.
 %%%
-%%% All _no_vnet_test functions do not use vnet and their purpose is
-%%% to check the core implementation of the counter server.
+%%% All _no_vnet_scenario functions do not use vnet and their purpose
+%%% is to check the core implementation of the counter server.
 %%%
 %%% @end
 %%%-------------------------------------------------------------------
 
 -module(counter_server_example).
 
-%%%-------------------------------------------------------------------
+-export(
+   [ valid_no_vnet_scenario/0
+   , invalid_no_vnet_scenario/0
+   , invalid_same_gen_no_vnet_scenario/0
+   , once_valid_scenario/0
+   , twice_valid_proxy_scenario/0
+   , twice_valid_rpc_scenario/0
+   , invalid_proxy_scenario/0
+   , invalid_rpc_scenario/0
+   , invalid_same_gen_proxy_scenario/0
+   , invalid_same_gen_rpc_scenario/0
+   , disconnect_proxy_scenario/0
+   , disconnect_rpc_scenario/0
+   , node_down_proxy_scenario/0
+   , node_down_rpc_scenario/0
+   ]).
 
--include_lib("eunit/include/eunit.hrl").
+%%%-------------------------------------------------------------------
 
 -concuerror_options(
    [ {instant_delivery, false}
@@ -36,6 +51,10 @@
 
 %%%-------------------------------------------------------------------
 
+-include_lib("eunit/include/eunit.hrl").
+
+%%%-------------------------------------------------------------------
+
 -include("../src/counter_server.hrl").
 
 %%%-------------------------------------------------------------------
@@ -43,7 +62,7 @@
 %% @doc
 %% Simulating a scenario with one client, making requests and checking
 %% results, without using any vnet logic.
-valid_no_vnet_test() ->
+valid_no_vnet_scenario() ->
   {ok, P1} = counter_server_supervisor:start_link_no_vnet(),
   %% Unlinking to not send signals to supervisor from main process
   %% exiting.
@@ -93,7 +112,7 @@ check_results(Res1, Res2) ->
 %% The second client will break the server.
 %% Nevertheless, the replies that the first client receives are
 %% expected to satisfy the correctness properties.
-invalid_no_vnet_test() ->
+invalid_no_vnet_scenario() ->
   {ok, P1} = counter_server_supervisor:start_link_no_vnet(),
   unlink(P1),
   spawn(fun valid_client_no_vnet/0),
@@ -111,7 +130,7 @@ invalid_client_no_vnet() ->
 %% not always satisfied: each reply will be from the same generation
 %% of server. As the server might be broken and restarted, this
 %% assertion will fail in some interleavings.
-invalid_same_gen_no_vnet_test() ->
+invalid_same_gen_no_vnet_scenario() ->
   {ok, P1} = counter_server_supervisor:start_link_no_vnet(),
   unlink(P1),
   spawn(fun valid_client_same_gen_no_vnet/0),
@@ -142,7 +161,7 @@ check_same_gen(Res1, Res2) ->
 
 %% @doc
 %% Simulating a scenario with one node as client, making a request.
-once_valid_test() ->
+once_valid_scenario() ->
   Nodes = [server, client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
@@ -210,13 +229,13 @@ check_exit(UnexpReason) ->
 %% Simulating a scenario with one node as client, making two requests
 %% and checking results.
 
-twice_valid_proxy_test() ->
-  twice_valid_test(proxy).
+twice_valid_proxy_scenario() ->
+  twice_valid_scenario(proxy).
 
-twice_valid_rpc_test() ->
-  twice_valid_test(rpc).
+twice_valid_rpc_scenario() ->
+  twice_valid_scenario(rpc).
 
-twice_valid_test(Mode) ->
+twice_valid_scenario(Mode) ->
   Nodes = [server, client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
@@ -240,13 +259,13 @@ twice_valid_client(Mode) ->
 %% @doc
 %% Simulating a scenario with two client nodes, one of which will
 %% break the server.
-invalid_proxy_test() ->
-  invalid_test(proxy).
+invalid_proxy_scenario() ->
+  invalid_scenario(proxy).
 
-invalid_rpc_test() ->
-  invalid_test(rpc).
+invalid_rpc_scenario() ->
+  invalid_scenario(rpc).
 
-invalid_test(Mode) ->
+invalid_scenario(Mode) ->
   Nodes = [server, client, bad_client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
@@ -269,13 +288,13 @@ invalid_rpc_request(Mode) ->
 %% @doc
 %% Simulating a scenario with one node as client, making a requests and
 %% checking results.
-invalid_same_gen_proxy_test() ->
-  invalid_same_gen_test(proxy).
+invalid_same_gen_proxy_scenario() ->
+  invalid_same_gen_scenario(proxy).
 
-invalid_same_gen_rpc_test() ->
-  invalid_same_gen_test(rpc).
+invalid_same_gen_rpc_scenario() ->
+  invalid_same_gen_scenario(rpc).
 
-invalid_same_gen_test(Mode) ->
+invalid_same_gen_scenario(Mode) ->
   Nodes = [server, client, bad_client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
@@ -302,13 +321,13 @@ twice_valid_same_gen_client(Mode) ->
 %% @doc
 %% Simulating a scenario with one node as client, making a request,
 %% while the connection is broken.
-disconnect_proxy_test() ->
-  disconnect_test(proxy).
+disconnect_proxy_scenario() ->
+  disconnect_scenario(proxy).
 
-disconnect_rpc_test() ->
-  disconnect_test(rpc).
+disconnect_rpc_scenario() ->
+  disconnect_scenario(rpc).
 
-disconnect_test(Mode) ->
+disconnect_scenario(Mode) ->
   Nodes = [server, client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
@@ -324,13 +343,13 @@ disconnect_test(Mode) ->
 %% @doc
 %% Simulating a scenario with one node as client, making a request,
 %% while the connection is broken.
-node_down_proxy_test() ->
-  node_down_test(proxy).
+node_down_proxy_scenario() ->
+  node_down_scenario(proxy).
 
-node_down_rpc_test() ->
-  node_down_test(rpc).
+node_down_rpc_scenario() ->
+  node_down_scenario(rpc).
 
-node_down_test(Mode) ->
+node_down_scenario(Mode) ->
   Nodes = [server, client],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
