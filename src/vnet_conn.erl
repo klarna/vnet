@@ -130,12 +130,15 @@ connected({call, From}, {proxy, VNodeC, {VNodeS, Pid}}, Data = #{gen := Gen}) ->
       %% Pid is not yet proxied or the proxy is from a previous
       %% generation (and therefore is already dead)
       Status = maps:get(VNodeS, Data),
-      {ok, Proxy} = case Status =:= started andalso is_process_alive(Pid) of
-                      true ->
-                        vnet_proxy:start(VNodeC, VNodeS, Pid, Gen);
-                      false ->
-                        {ok, vnet:dead_pid()}
-                    end,
+      {ok, Proxy} =
+        try
+          Status = started,
+          true = is_process_alive(Pid),
+          {ok, _} = vnet_proxy:start(VNodeC, VNodeS, Pid, Gen)
+        catch
+          _:_ ->
+            {ok, vnet:dead_pid()}
+        end,
       {keep_state, Data#{Pid => {VNodeS, Gen, Proxy}}, {reply, From, Proxy}}
   end;
 connected({call, From}, connect, _Data) ->
