@@ -18,7 +18,6 @@
         , init/1
         , connected/3
         , disconnected/3
-        , terminating_proxies/3
         ]).
 
 %% The possible states of the `gen_statem'.
@@ -173,28 +172,6 @@ disconnected({call, From}, {vnode_stopping, VNode}, Data) ->
 disconnected(_EventContent, _EventContent, _Data) ->
   keep_state_and_data.
 
--spec terminating_proxies(gen_statem:event_type(), any(), data()) ->
-                             gen_statem:event_handler_result(state()).
-terminating_proxies( Type = {call, _}
-                   , Req = {proxy, _, _}
-                   , Data = #{next_state := State}) ->
-  %% Note: we assume that handling a proxy request would never change the state!
-  apply(?MODULE, State, [Type, Req, Data]);
-terminating_proxies( info
-                   , {'DOWN', Monitor, process, _, _}
-                   , Data = #{ monitors := Monitors
-                             , next_state := NextState
-                             }) ->
-  case lists:delete(Monitor, Monitors) of
-    [] ->
-      NewData = maps:without([monitors, next_state], Data),
-      {next_state, NextState, NewData};
-    NewMonitors ->
-      {keep_state, Data#{monitors => NewMonitors}}
-  end;
-terminating_proxies(_, _, _) ->
-  {keep_state_and_data, postpone}.
-
 %% ---------------------------------------------------------------------
 %% Helper functions
 %% ---------------------------------------------------------------------
@@ -204,16 +181,18 @@ terminating_proxies(_, _, _) ->
                                    , data()
                                    , [reference()]
                                    ) -> gen_statem:event_handler_result(state()).
-wait_for_proxies_to_terminate(From, NextState, Data, []) ->
-  {next_state, NextState, Data, {reply, From, ok}};
 wait_for_proxies_to_terminate(From, NextState, Data, Monitors) ->
-  { next_state
-  , terminating_proxies
-  , Data#{ next_state => NextState
-         , monitors => Monitors
-         }
-  , {reply, From, ok}
-  }.
+  gen_statem:reply(From, ok),
+  wait_down_messages(Monitors),
+  {next_state, NextState, Data}.
+
+wait_down_messages([]) ->
+  ok;
+wait_down_messages([Monitor|Rest]) ->
+  receive
+    {'DOWN', Monitor, process, _, _} -> ok
+  end,
+  wait_down_messages(Rest).
 
 -spec on_disconnect(pid()) -> reference().
 on_disconnect(Pid) ->
