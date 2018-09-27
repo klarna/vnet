@@ -15,7 +15,8 @@
 
 %% A message to signal the proxy shall go down with noconnection
 %% reason.
--define(noconnection(T), {'$$$_vnet_proxy_noconnection_signal_$$$', T}).
+-define(noconnection(From, Ref, Type),
+        {'$$$_vnet_proxy_noconnection_signal_$$$', From, Ref, Type}).
 
 %% ---------------------------------------------------------------------
 %% API
@@ -31,13 +32,11 @@ start(VNodeC, VNodeS, Pid, Gen) ->
 
 -spec on_disconnect(pid()) -> ok.
 on_disconnect(Proxy) ->
-  Proxy ! ?noconnection(true),
-  ok.
+  sync_noconnection(Proxy, disconnect).
 
 -spec on_stop(pid()) -> ok.
 on_stop(Proxy) ->
-  Proxy ! ?noconnection(false),
-  ok.
+  sync_noconnection(Proxy, stop).
 
 %% ---------------------------------------------------------------------
 %% Internal callbacks
@@ -65,13 +64,15 @@ loop(Pid) ->
   receive Msg -> ?MODULE:loop(Msg, Pid) end.
 
 -spec loop(term(), pid()) -> no_return().
-loop(?noconnection(true), Pid) ->
+loop(?noconnection(From, Ref, disconnect), Pid) ->
   %% Simulate the connection going down
   unlink(Pid),
+  From ! Ref,
   exit(noconnection);
-loop(?noconnection(false), Pid) ->
+loop(?noconnection(From, Ref, stop), Pid) ->
   %% Wait for the real process going down and convert the exit reason
   %% to a `noconnection'
+  From ! Ref,
   receive {'EXIT', Pid, _Reason} -> exit(noconnection) end;
 loop({'EXIT', Pid, Reason}, Pid) ->
   %% Real process died, terminate with the same reason
@@ -115,3 +116,11 @@ translate_msg(Term, Changed) ->
   %% external term format and finally converting it back to a fun. But
   %% it's not convenient, and not yet implemented.
   {Term, Changed}.
+
+sync_noconnection(Pid, Type) ->
+  Ref = monitor(process, Pid),
+  Pid ! ?noconnection(self(), Ref, Type),
+  receive
+    Ref -> ok;
+    {'DOWN', Ref, process, Pid, _Reason} -> ok
+  end.
