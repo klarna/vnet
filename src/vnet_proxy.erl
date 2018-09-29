@@ -9,7 +9,7 @@
         ]).
 
 %% Internal callbacks
--export([ init/4
+-export([ init/5
         , loop/2
         ]).
 
@@ -25,10 +25,15 @@
 -spec start(vnet:vnode(), vnet:vnode(), pid(), term()) -> {ok, pid()} |
                                                           {error, any()}.
 start(VNodeC, VNodeS, Pid, Gen) ->
-  proc_lib:start( ?MODULE
-                , init
-                , [VNodeC, VNodeS, Pid, Gen]
-                ).
+  {Proxy, Monitor} =
+    spawn_monitor(?MODULE, init, [self(), VNodeC, VNodeS, Pid, Gen]),
+  receive
+    {ok, Proxy} = Res ->
+      demonitor(Monitor, [flush]),
+      Res;
+    {'DOWN', Monitor, process, Proxy, Reason} ->
+      {error, Reason}
+  end.
 
 -spec on_disconnect(pid()) -> ok.
 on_disconnect(Proxy) ->
@@ -42,21 +47,21 @@ on_stop(Proxy) ->
 %% Internal callbacks
 %% ---------------------------------------------------------------------
 
--spec init(vnet:vnode(), vnet:vnode(), pid(), term()) -> no_return().
-init(VNodeC, VNodeS, Pid, Gen) ->
+-spec init(pid(), vnet:vnode(), vnet:vnode(), pid(), term()) -> no_return().
+init(Parent, VNodeC, VNodeS, Pid, Gen) ->
   process_flag(trap_exit, true),
   put(proxy, {VNodeC, VNodeS, Pid}),
   link(Pid),
   PidName =
     case process_info(Pid, registered_name) of
-      [] -> erlang:pid_to_list(Pid);
-      {registered_name, Name} -> Name
+      {registered_name, Name} -> Name;
+      _ -> erlang:pid_to_list(Pid)
     end,
   ProxyName =
     lists:flatten(io_lib:format( "~p/~s->~s/~p"
                                , [PidName, VNodeC, VNodeS, Gen])),
   register(list_to_atom(ProxyName), self()),
-  proc_lib:init_ack({ok, self()}),
+  Parent ! {ok, self()},
   loop(Pid).
 
 -spec loop(pid()) -> no_return().

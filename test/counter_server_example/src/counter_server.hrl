@@ -1,0 +1,1 @@
+-define(SERVER, counter_server).
