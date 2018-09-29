@@ -9,7 +9,8 @@
         ]).
 
 %% Internal callbacks
--export([ loop/2
+-export([ init/5
+        , loop/2
         ]).
 
 %% A message to signal the proxy shall go down with noconnection
@@ -23,18 +24,14 @@
 -spec start(vnet:vnode(), vnet:vnode(), pid(), term()) -> {ok, pid()} |
                                                           {error, any()}.
 start(VNodeC, VNodeS, Pid, Gen) ->
-  P = self(),
-  Ref = make_ref(),
-  Fun =
-    fun() ->
-        init(VNodeC, VNodeS, Pid, Gen),
-        P ! {ack, Ref},
-        loop(Pid)
-    end,
-  {Proxy, Monitor} = spawn_monitor(Fun),
+  {Proxy, Monitor} =
+    spawn_monitor(?MODULE, init, [self(), VNodeC, VNodeS, Pid, Gen]),
   receive
-    {ack, Ref} -> {ok, Proxy};
-    {'DOWN', Monitor, process, Proxy, Reason} -> {error, Reason}
+    {ok, Proxy} = Res ->
+      demonitor(Monitor, [flush]),
+      Res;
+    {'DOWN', Monitor, process, Proxy, Reason} ->
+      {error, Reason}
   end.
 
 -spec on_disconnect(pid()) -> ok.
@@ -51,8 +48,8 @@ on_stop(Proxy) ->
 %% Internal callbacks
 %% ---------------------------------------------------------------------
 
--spec init(vnet:vnode(), vnet:vnode(), pid(), term()) -> no_return().
-init(VNodeC, VNodeS, Pid, Gen) ->
+-spec init(pid(), vnet:vnode(), vnet:vnode(), pid(), term()) -> no_return().
+init(Parent, VNodeC, VNodeS, Pid, Gen) ->
   process_flag(trap_exit, true),
   put(proxy, {VNodeC, VNodeS, Pid}),
   link(Pid),
@@ -64,7 +61,9 @@ init(VNodeC, VNodeS, Pid, Gen) ->
   ProxyName =
     lists:flatten(io_lib:format( "~p/~s->~s/~p"
                                , [PidName, VNodeC, VNodeS, Gen])),
-  register(list_to_atom(ProxyName), self()).
+  register(list_to_atom(ProxyName), self()),
+  Parent ! {ok, self()},
+  loop(Pid).
 
 -spec loop(pid()) -> no_return().
 loop(Pid) ->
