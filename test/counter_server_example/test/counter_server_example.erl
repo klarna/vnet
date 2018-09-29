@@ -59,6 +59,12 @@
 
 %%%-------------------------------------------------------------------
 
+-define(SERVER_NODE,     server).
+-define(CLIENT_NODE,     client).
+-define(BAD_CLIENT_NODE, bad_client).
+
+%%%-------------------------------------------------------------------
+
 %% @doc
 %% Simulating a scenario with one client, making requests and checking
 %% results, without using any vnet logic.
@@ -162,14 +168,14 @@ check_same_gen(Res1, Res2) ->
 %% @doc
 %% Simulating a scenario with one node as client, making a request.
 once_valid_scenario() ->
-  Nodes = [server, client],
+  Nodes = [?SERVER_NODE, ?CLIENT_NODE],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
   %% Synchronous server setup
-  vnet:rpc(server, ?MODULE, setup_server, []),
+  vnet:rpc(?SERVER_NODE, ?MODULE, setup_server, []),
   %% Async client request
   ClientRPC = [?MODULE, once_valid_client, [proxy]],
-  spawned_vnet_rpc(client, ClientRPC).
+  spawned_vnet_rpc(?CLIENT_NODE, ClientRPC).
 
 %%%-------------------------------------------------------------------
 
@@ -200,9 +206,12 @@ server_request(Request, Mode) ->
       case Mode of
         rpc ->
           {ok, _, _} =
-            vnet:rpc(server, counter_server, request, [{via, vnet, ?SERVER}, Request]);
+            vnet:rpc(?SERVER_NODE
+                    , counter_server
+                    , request
+                    , [{via, vnet, ?SERVER}, Request]);
         proxy ->
-          counter_server:request({via, vnet, {server, ?SERVER}}, Request)
+          counter_server:request({via, vnet, {?SERVER_NODE, ?SERVER}}, Request)
       end,
     check_response(Response),
     Response
@@ -236,12 +245,12 @@ twice_valid_rpc_scenario() ->
   twice_valid_scenario(rpc).
 
 twice_valid_scenario(Mode) ->
-  Nodes = [server, client],
+  Nodes = [?SERVER_NODE, ?CLIENT_NODE],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
-  vnet:rpc(server, ?MODULE, setup_server, []),
+  vnet:rpc(?SERVER_NODE, ?MODULE, setup_server, []),
   ClinetRPC = [?MODULE, twice_valid_client, [Mode]],
-  spawned_vnet_rpc(client, ClinetRPC).
+  spawned_vnet_rpc(?CLIENT_NODE, ClinetRPC).
 
 %%--------------------------------------------------------------------
 
@@ -266,14 +275,14 @@ invalid_rpc_scenario() ->
   invalid_scenario(rpc).
 
 invalid_scenario(Mode) ->
-  Nodes = [server, client, bad_client],
+  Nodes = [?SERVER_NODE, ?CLIENT_NODE, ?BAD_CLIENT_NODE],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
-  vnet:rpc(server, ?MODULE, setup_server, []),
+  vnet:rpc(?SERVER_NODE, ?MODULE, setup_server, []),
   GoodClientRPC = [?MODULE, twice_valid_client, [Mode]],
-  spawned_vnet_rpc(client, GoodClientRPC),
+  spawned_vnet_rpc(?CLIENT_NODE, GoodClientRPC),
   BadClientRPC = [?MODULE, invalid_client, [Mode]],
-  spawned_vnet_rpc(bad_client, BadClientRPC).
+  spawned_vnet_rpc(?BAD_CLIENT_NODE, BadClientRPC).
 
 %%--------------------------------------------------------------------
 
@@ -295,14 +304,14 @@ invalid_same_gen_rpc_scenario() ->
   invalid_same_gen_scenario(rpc).
 
 invalid_same_gen_scenario(Mode) ->
-  Nodes = [server, client, bad_client],
+  Nodes = [?SERVER_NODE, ?CLIENT_NODE, ?BAD_CLIENT_NODE],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
-  vnet:rpc(server, ?MODULE, setup_server, []),
+  vnet:rpc(?SERVER_NODE, ?MODULE, setup_server, []),
   GoodRPC = [?MODULE, twice_valid_same_gen_client, [Mode]],
-  spawned_vnet_rpc(client, GoodRPC),
+  spawned_vnet_rpc(?CLIENT_NODE, GoodRPC),
   BadRPC = [?MODULE, invalid_client, [Mode]],
-  spawned_vnet_rpc(bad_client, BadRPC).
+  spawned_vnet_rpc(?BAD_CLIENT_NODE, BadRPC).
 
 %%--------------------------------------------------------------------
 
@@ -328,15 +337,15 @@ disconnect_rpc_scenario() ->
   disconnect_scenario(rpc).
 
 disconnect_scenario(Mode) ->
-  Nodes = [server, client],
+  Nodes = [?SERVER_NODE, ?CLIENT_NODE],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
   %% Synchronous server setup
-  vnet:rpc(server, ?MODULE, setup_server, []),
+  vnet:rpc(?SERVER_NODE, ?MODULE, setup_server, []),
   %% Async client request
   ClientRPC = [?MODULE, twice_valid_same_gen_client, [Mode]],
-  spawned_vnet_rpc(client, ClientRPC),
-  vnet:disconnect(server, client).
+  spawned_vnet_rpc(?CLIENT_NODE, ClientRPC),
+  vnet:disconnect(?SERVER_NODE, ?CLIENT_NODE).
 
 %%%===================================================================
 
@@ -350,12 +359,12 @@ node_down_rpc_scenario() ->
   node_down_scenario(rpc).
 
 node_down_scenario(Mode) ->
-  Nodes = [server, client],
+  Nodes = [?SERVER_NODE, ?CLIENT_NODE],
   {ok, S} = vnet:start_link(Nodes),
   unlink(S),
   %% Synchronous server setup
-  vnet:rpc(server, ?MODULE, setup_server, []),
+  vnet:rpc(?SERVER_NODE, ?MODULE, setup_server, []),
   %% Async client request
   ClientRPC = [?MODULE, twice_valid_same_gen_client, [Mode]],
-  spawned_vnet_rpc(client, ClientRPC),
-  vnet:stop(server).
+  spawned_vnet_rpc(?CLIENT_NODE, ClientRPC),
+  vnet:stop(?SERVER_NODE).
